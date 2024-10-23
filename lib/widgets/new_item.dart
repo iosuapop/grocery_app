@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import 'package:http/http.dart' as http;
+// import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 
 import 'package:http_requests/data/categories.dart';
 import 'package:http_requests/models/category.dart';
@@ -24,27 +25,52 @@ class _NewItemState extends State<NewItem> {
   var _selectedCategory = categories[Categories.vegetables]!;
   var _isSending = false;
 
+  final Dio dio = Dio();
+
   void _saveItem() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isSending = true;
       });
       _formKey.currentState!.save();
-      final url = Uri.https('flutter-prep-194d7-default-rtdb.firebaseio.com', 'shopping-list.json');
-      final response = await http.post(url, headers: {
-        'Content-Type': 'application/json',
-      },body: json.encode({
-          'name': _enteredName,
-          'quantity': _enteredQuantity,
-          'category': _selectedCategory.title,
-      },),);
-      
-      final Map<String, dynamic> resData = json.decode(response.body);
-      
-      if(!context.mounted){
-        return;
+      // final url = Uri.https('flutter-prep-194d7-default-rtdb.firebaseio.com', 'shopping-list.json');
+
+      const url ='https://flutter-prep-194d7-default-rtdb.firebaseio.com/shopping-list.json';
+
+      try {
+        final response = await dio.post(
+          url,
+          options: Options(
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          ),
+          data: json.encode(
+            {
+              'name': _enteredName,
+              'quantity': _enteredQuantity,
+              'category': _selectedCategory.title,
+            },
+          ),
+        );
+
+        final Map<String, dynamic> resData = response.data;
+
+        if (!context.mounted) {
+          return;
+        }
+        Navigator.of(context).pop(GroceryItem(
+            id: resData['name'],
+            name: _enteredName,
+            quantity: _enteredQuantity,
+            category: _selectedCategory));
+      } catch (error) {
+        print('Eroare la trimiterea datelor: $error');
+      } finally {
+        setState(() {
+          _isSending = false;
+        });
       }
-      Navigator.of(context).pop(GroceryItem(id: resData['name'], name: _enteredName, quantity: _enteredQuantity, category: _selectedCategory));
     }
   }
 
@@ -80,7 +106,7 @@ class _NewItemState extends State<NewItem> {
                   // }
                   _enteredName = value!;
                 },
-              ), // instead of TextField()
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -140,18 +166,22 @@ class _NewItemState extends State<NewItem> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSending ? null : () {
-                      _formKey.currentState!.reset();
-                    },
+                    onPressed: _isSending
+                        ? null
+                        : () {
+                            _formKey.currentState!.reset();
+                          },
                     child: const Text('Reset'),
                   ),
                   ElevatedButton(
                     onPressed: _isSending ? null : _saveItem,
-                    child: _isSending ? const SizedBox(
-                      height: 16, 
-                      width: 16, 
-                      child: CircularProgressIndicator(),) 
-                      : const Text('Add Item'),
+                    child: _isSending
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(),
+                          )
+                        : const Text('Add Item'),
                   )
                 ],
               ),

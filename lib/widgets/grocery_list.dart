@@ -2,7 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import 'package:http/http.dart' as http;
+//import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:http/http.dart';
+
 import 'package:http_requests/data/categories.dart';
 
 import 'package:http_requests/models/grocery_item.dart';
@@ -21,50 +24,56 @@ class _GroceryListState extends State<GroceryList> {
   var _isLoading = true;
   // late Future<List<GroceryItem>> _loadedItems;
   String? _error;
+  final Dio dio = Dio();
 
   @override
   void initState() {
     super.initState();
-    // _loadedItems = 
+    // _loadedItems =
     _loadItems();
   }
 
   // Future<List<GroceryItem>>
   void _loadItems() async {
-    final url = Uri.https(
-        'flutter-prep-194d7-default-rtdb.firebaseio.com', 'shopping-list.json');
-    final response = await http.get(url);
+    // final url = Uri.https(
+    //     'flutter-prep-194d7-default-rtdb.firebaseio.com', 'shopping-list.json');
 
-    try{
-    if (response.statusCode >= 400) {
-      // throw Exception('Failed to fetch data. Please try again later.');
+    const url ='https://flutter-prep-194d7-default-rtdb.firebaseio.com/shopping-list.json';
+
+    try {
+      final response = await dio.get(url);
+
+      if (response.statusCode! >= 400) {
+        // throw Exception('Failed to fetch data. Please try again later.');
+        setState(() {
+          _error = 'Failed to fetch data. Please try again later.';
+        });
+      }
+      if (response.data == 'null') {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+        // [];
+      }
+      final Map<String, dynamic> listData = response.data;
+      final List<GroceryItem> loadedItems = [];
+      for (final item in listData.entries) {
+        final category = categories.entries
+            .firstWhere(
+                (catItem) => catItem.value.title == item.value['category'])
+            .value;
+        loadedItems.add(GroceryItem(
+            id: item.key,
+            name: item.value['name'],
+            quantity: item.value['quantity'],
+            category: category));
+      }
       setState(() {
-        _error = 'Failed to fetch data. Please try again later.';
-      });
-    }
-    if (response.body == 'null') {
-      setState(() {
+        _groceryItems = loadedItems;
         _isLoading = false;
       });
-      return;
-      // [];
-    }
-    final Map<String, dynamic> listData = json.decode(response.body);
-    final List<GroceryItem> loadedItems = [];
-    for (final item in listData.entries) {
-      final category = categories.entries
-          .firstWhere(
-              (catItem) => catItem.value.title == item.value['category'])
-          .value;
-      loadedItems.add(GroceryItem(
-          id: item.key,
-          name: item.value['name'],
-          quantity: item.value['quantity'],
-          category: category));
-    }
-    return _loadItems();
-    }
-    catch (error) {
+    } catch (error) {
       setState(() {
         _error = 'Failed to fetch data. Please try again later';
       });
@@ -90,11 +99,21 @@ class _GroceryListState extends State<GroceryList> {
       _groceryItems.remove(item);
     });
 
-    final url = Uri.https('flutter-prep-194d7-default-rtdb.firebaseio.com',
-        'shopping-list/${item.id}.json');
-    final response = await http.delete(url);
+    // final url = Uri.https('flutter-prep-194d7-default-rtdb.firebaseio.com',
+    //     'shopping-list/${item.id}.json');
 
-    if (response.statusCode >= 400) {
+    final url =
+        'https://flutter-prep-194d7-default-rtdb.firebaseio.com/shopping-list/${item.id}.json';
+
+    try {
+      final response = await dio.delete(url);
+
+      if (response.statusCode! >= 400) {
+        setState(() {
+          _groceryItems.add(item);
+        });
+      }
+    } catch (error) {
       setState(() {
         _groceryItems.add(item);
       });
@@ -105,8 +124,10 @@ class _GroceryListState extends State<GroceryList> {
   Widget build(BuildContext context) {
     Widget content = const Center(child: Text('No items added yet.'));
 
-    if(_isLoading){
-      content = const Center(child: CircularProgressIndicator(),);
+    if (_isLoading) {
+      content = const Center(
+        child: CircularProgressIndicator(),
+      );
     }
 
     if (_groceryItems.isNotEmpty) {
@@ -132,8 +153,10 @@ class _GroceryListState extends State<GroceryList> {
       );
     }
 
-    if(_error != null){
-      content = Center(child: Text(_error!),);
+    if (_error != null) {
+      content = Center(
+        child: Text(_error!),
+      );
     }
 
     return Scaffold(
